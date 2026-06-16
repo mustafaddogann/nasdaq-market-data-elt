@@ -140,11 +140,9 @@ erDiagram
 
 6. Trigger the DAG. Airflow runs locally; Snowflake stores the warehouse layers.
 
-## Airflow DAG Screenshot
+## Airflow DAG
 
-Replace this placeholder after the first local run:
-
-![Airflow DAG placeholder](docs/images/airflow-dag-placeholder.svg)
+![Airflow DAG run](docs/images/dag-output.png)
 
 ## Sample Analytics SQL
 
