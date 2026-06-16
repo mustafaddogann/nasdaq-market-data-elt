@@ -1,0 +1,26 @@
+priority,symbol,company_name,sector,industry
+1,AAPL,Apple Inc.,Information Technology,Consumer Electronics
+2,MSFT,Microsoft Corporation,Information Technology,Software
+3,NVDA,NVIDIA Corporation,Information Technology,Semiconductors
+4,AMZN,Amazon.com Inc.,Consumer Discretionary,Internet Retail
+5,META,Meta Platforms Inc.,Communication Services,Interactive Media
+6,AVGO,Broadcom Inc.,Information Technology,Semiconductors
+7,GOOGL,Alphabet Inc. Class A,Communication Services,Interactive Media
+8,GOOG,Alphabet Inc. Class C,Communication Services,Interactive Media
+9,TSLA,Tesla Inc.,Consumer Discretionary,Automobiles
+10,COST,Costco Wholesale Corporation,Consumer Staples,Consumer Staples Retail
+11,NFLX,Netflix Inc.,Communication Services,Entertainment
+12,AMD,Advanced Micro Devices Inc.,Information Technology,Semiconductors
+13,ADBE,Adobe Inc.,Information Technology,Software
+14,CSCO,Cisco Systems Inc.,Information Technology,Communications Equipment
+15,PEP,PepsiCo Inc.,Consumer Staples,Beverages
+16,TMUS,T-Mobile US Inc.,Communication Services,Wireless Telecommunication Services
+17,QCOM,QUALCOMM Incorporated,Information Technology,Semiconductors
+18,INTU,Intuit Inc.,Information Technology,Software
+19,AMAT,Applied Materials Inc.,Information Technology,Semiconductor Equipment
+20,TXN,Texas Instruments Incorporated,Information Technology,Semiconductors
+21,BKNG,Booking Holdings Inc.,Consumer Discretionary,Travel Services
+22,ISRG,Intuitive Surgical Inc.,Health Care,Health Care Equipment
+23,CMCSA,Comcast Corporation,Communication Services,Cable and Satellite
+24,HON,Honeywell International Inc.,Industrials,Industrial Conglomerates
+25,AMGN,Amgen Inc.,Health Care,Biotechnology

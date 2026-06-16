@@ -1,0 +1,38 @@
+[project]
+name = "nasdaq-market-data-elt"
+version = "0.1.0"
+description = "Dockerized Airflow and Snowflake ELT pipeline for Nasdaq-100 daily market data."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "pandas>=2.0",
+  "python-dotenv>=1.0",
+  "requests>=2.31",
+  "snowflake-connector-python[pandas]>=3.10",
+  "snowflake-sqlalchemy>=1.6",
+  "SQLAlchemy>=2.0",
+]
+
+[project.scripts]
+nasdaq-elt = "nasdaq_elt.pipeline:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+markers = [
+  "integration: tests requiring a live Snowflake warehouse",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "airflow/dags"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

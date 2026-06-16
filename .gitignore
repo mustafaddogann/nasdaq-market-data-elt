@@ -1,0 +1,24 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+logs/
+plugins/
+airflow.db
+standalone_admin_password.txt
+tmp/
+data/
+
+# Build artifacts
+*.egg-info/
+build/
+dist/
+
+# Unrelated local-only project
+yt_de_project/
