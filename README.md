@@ -1,162 +1,79 @@
-# Snowflake Nasdaq-100 Dimensional ELT
+# Nasdaq-100 ELT to Snowflake
 
-Dockerized Airflow ELT pipeline that ingests Nasdaq-100 daily market data from Alpha Vantage and loads a Snowflake dimensional warehouse. This project treats the original “Nasdaq 500” idea as **Nasdaq-100**, because Nasdaq-100 is the recognized Nasdaq large-cap index.
+Small ELT project I built to practice Snowflake modeling end to end: pull
+daily OHLCV for the Nasdaq-100 from Alpha Vantage, land it in Bronze,
+normalize it in Silver, then build dims, facts and a few marts in Gold.
 
-The goal is a recruiter-readable data engineering project: API ingestion, Snowflake Bronze/Silver/Gold modeling, dimensional facts, idempotent `MERGE` loads, data quality checks, orchestration, tests, and BI-ready marts.
+Airflow runs locally in Docker, Snowflake holds the warehouse, Python
+does the API and transform work.
 
-## Tech Stack
+## Stack
 
-- **Python / pandas** for API ingestion, normalization, and validation
-- **Apache Airflow** for orchestration
-- **Snowflake** for cloud data warehousing
-- **Docker Compose** for local Airflow execution
-- **pytest** for unit, SQL asset, DAG import, and optional Snowflake integration tests
-
-## Data Source
-
-- Ticker universe: seeded Nasdaq-100 starter list in `config/nasdaq100_symbols.csv`
-- Market data: Alpha Vantage `TIME_SERIES_DAILY` endpoint
-- Source constraints:
-  - Alpha Vantage supports daily OHLCV equity data through the free API-key flow.
-  - Nasdaq-100 index-level and premium vendor datasets may require paid access.
-  - Free-tier API limits are handled with `NASDAQ_SYMBOL_LIMIT` and `ALPHA_VANTAGE_API_PAUSE_SECONDS`.
-
-Sources:
-
-- [Nasdaq-100 quotes and constituents page](https://www.nasdaq.com/market-activity/quotes/nasdaq-ndx-index)
-- [Alpha Vantage API documentation](https://www.alphavantage.co/documentation/)
-- [Snowflake SQLAlchemy documentation](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy)
+- Python 3.11 — pandas, requests, SQLAlchemy
+- Apache Airflow 2.9 — Docker, SequentialExecutor on SQLite (local only)
+- Snowflake — XSMALL warehouse, fits the free trial
+- pytest — unit, SQL asset, DAG import, optional Snowflake integration
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Alpha Vantage API"] --> B["Dockerized Airflow DAG"]
-    B --> C["Python ingestion client"]
-    C --> D["Snowflake Bronze: raw JSON + raw OHLCV"]
-    D --> E["Snowflake Silver: normalized staging"]
-    E --> F["Snowflake Gold: dimensions + facts"]
-    F --> G["BI-ready marts and sample SQL"]
+    A["Alpha Vantage"] --> B["Airflow (Docker)"]
+    B --> C["Python ingestion"]
+    C --> D["BRONZE: raw API + raw OHLCV"]
+    D --> E["SILVER: normalized staging"]
+    E --> F["GOLD: dims, facts, marts"]
 ```
 
-## Dimensional Model
+## Warehouse layers
 
-```mermaid
-erDiagram
-    DIM_DATE ||--o{ FACT_DAILY_PRICE : date_key
-    DIM_SECURITY ||--o{ FACT_DAILY_PRICE : security_key
-    DIM_SECTOR ||--o{ DIM_SECURITY : sector_key
-    FACT_DAILY_PRICE ||--|| FACT_SECURITY_DAILY_METRICS : daily_grain
-    FACT_SECURITY_DAILY_METRICS ||--o{ MART_TOP_MOVERS : aggregates
-    FACT_SECURITY_DAILY_METRICS ||--o{ MART_SECURITY_TREND_SIGNALS : aggregates
+- **BRONZE** — `RAW_API_RESPONSES` (full JSON in a `VARIANT`), `RAW_NASDAQ_DAILY_PRICES`
+- **SILVER** — `STG_SECURITY`, `STG_DAILY_PRICE`, `STG_TRADING_CALENDAR`
+- **GOLD dims** — `DIM_DATE`, `DIM_SECURITY`, `DIM_SECTOR`
+- **GOLD facts** — `FACT_DAILY_PRICE`, `FACT_SECURITY_DAILY_METRICS`
+- **GOLD marts** — `MART_NASDAQ_MARKET_MOMENTUM`, `MART_SECTOR_PERFORMANCE`, `MART_TOP_MOVERS`, `MART_SECURITY_TREND_SIGNALS`
 
-    DIM_DATE {
-        number date_key PK
-        date trading_date
-        string day_of_week_name
-        number month_number
-        number quarter_number
-        boolean is_trading_day
-    }
+Loads are `MERGE` upserts keyed on `(symbol, trading_date)`, so reruns are idempotent.
 
-    DIM_SECURITY {
-        number security_key PK
-        number sector_key FK
-        string symbol
-        string company_name
-        string sector
-        string industry
-        boolean is_current
-    }
+## Setup
 
-    DIM_SECTOR {
-        number sector_key PK
-        string sector
-        string industry
-    }
-
-    FACT_DAILY_PRICE {
-        number date_key PK
-        number security_key PK
-        number open_price
-        number close_price
-        number volume
-        number dollar_volume
-    }
-
-    FACT_SECURITY_DAILY_METRICS {
-        number date_key PK
-        number security_key PK
-        number daily_return
-        number rolling_30_day_return
-        boolean volume_spike_flag
-        string moving_average_signal
-        number rank_movement
-    }
-```
-
-## Warehouse Layers
-
-- **Bronze**: `BRONZE.RAW_API_RESPONSES`, `BRONZE.RAW_NASDAQ_DAILY_PRICES`
-- **Silver**: `SILVER.STG_SECURITY`, `SILVER.STG_DAILY_PRICE`, `SILVER.STG_TRADING_CALENDAR`
-- **Gold dimensions**: `GOLD.DIM_DATE`, `GOLD.DIM_SECURITY`, `GOLD.DIM_SECTOR`
-- **Gold facts**: `GOLD.FACT_DAILY_PRICE`, `GOLD.FACT_SECURITY_DAILY_METRICS`
-- **Gold marts**: `GOLD.MART_NASDAQ_MARKET_MOMENTUM`, `GOLD.MART_SECTOR_PERFORMANCE`, `GOLD.MART_TOP_MOVERS`, `GOLD.MART_SECURITY_TREND_SIGNALS`
-
-## Quickstart
-
-1. Create an environment file:
+1. Copy the env file and fill it in:
 
    ```bash
    cp .env.example .env
    ```
 
-2. Add credentials:
+   You need:
+   - `ALPHA_VANTAGE_API_KEY` — free key from alphavantage.co
+   - `SNOWFLAKE_ACCOUNT` (no `.snowflakecomputing.com` suffix), `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`
+   - `NASDAQ_SYMBOL_LIMIT=3` for the first run — free tier rate-limits hard
 
-   ```bash
-   ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
-   SNOWFLAKE_ACCOUNT=your-org-your-account
-   SNOWFLAKE_USER=your_user
-   SNOWFLAKE_PASSWORD=your_password
-   SNOWFLAKE_ROLE=NASDAQ_ELT_ROLE
-   SNOWFLAKE_WAREHOUSE=NASDAQ_ELT_WH
-   SNOWFLAKE_DATABASE=NASDAQ_MARKET_DATA
-   NASDAQ_SYMBOL_LIMIT=3
-   ```
+2. Create the Snowflake role/warehouse/database. SQL is in
+   [`docs/snowflake_setup.md`](docs/snowflake_setup.md).
 
-3. Create the Snowflake role, warehouse, and database using `docs/snowflake_setup.md`.
-
-4. Start local Airflow:
+3. Start Airflow:
 
    ```bash
    docker compose up airflow-webserver airflow-scheduler
    ```
 
-5. Open Airflow at [http://localhost:8080](http://localhost:8080):
+   First boot pulls the Airflow image and pip-installs project
+   requirements into the container — give it a few minutes.
 
-   - Username: `admin`
-   - Password: `admin`
-   - DAG: `nasdaq_100_market_data_elt`
-
-6. Trigger the DAG. Airflow runs locally; Snowflake stores the warehouse layers.
+4. Open <http://localhost:8080> (admin / admin), enable
+   `nasdaq_100_market_data_elt`, trigger it.
 
 ## Airflow DAG
 
 ![Airflow DAG run](docs/images/dag-output.png)
 
-## Sample Analytics SQL
+## Sample queries
 
 Top movers:
 
 ```sql
-SELECT
-    trading_date,
-    symbol,
-    company_name,
-    mover_type,
-    mover_rank,
-    daily_return,
-    rank_movement
+SELECT trading_date, symbol, company_name, mover_type, mover_rank,
+       daily_return, rank_movement
 FROM GOLD.MART_TOP_MOVERS
 ORDER BY trading_date DESC, mover_type, mover_rank;
 ```
@@ -164,56 +81,53 @@ ORDER BY trading_date DESC, mover_type, mover_rank;
 Market breadth:
 
 ```sql
-SELECT
-    trading_date,
-    advancing_security_count,
-    declining_security_count,
-    average_daily_return,
-    top_gainer_symbol,
-    top_loser_symbol
+SELECT trading_date, advancing_security_count, declining_security_count,
+       average_daily_return, top_gainer_symbol, top_loser_symbol
 FROM GOLD.MART_NASDAQ_MARKET_MOMENTUM
 ORDER BY trading_date DESC;
 ```
 
-Latest trend signals:
+Latest trend signals per security:
 
 ```sql
-SELECT
-    symbol,
-    company_name,
-    sector,
-    trading_date,
-    moving_average_signal,
-    rolling_30_day_return,
-    volume_spike_flag
+SELECT symbol, company_name, sector, trading_date,
+       moving_average_signal, rolling_30_day_return, volume_spike_flag
 FROM GOLD.VW_LATEST_SECURITY_SIGNALS
 ORDER BY sector, symbol;
 ```
 
-## Local Development
-
-Install dependencies:
+## Local development
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-```
-
-Run tests:
-
-```bash
 pytest
 ```
 
-Run optional Snowflake integration tests:
+Snowflake integration tests are off by default:
 
 ```bash
 SNOWFLAKE_TEST_ENABLED=true pytest tests/test_snowflake_integration.py
 ```
 
-## Resume Bullets
+## Notes / gotchas
 
-- Built a Dockerized Airflow ELT pipeline ingesting Nasdaq-100 daily OHLCV data from Alpha Vantage into a Snowflake Bronze/Silver/Gold warehouse.
-- Designed a dimensional model with `DIM_DATE`, `DIM_SECURITY`, `DIM_SECTOR`, daily price facts, security metrics facts, and BI-ready market/sector/top-mover marts.
-- Implemented Snowflake `MERGE` upserts, semi-structured `VARIANT` raw payload storage, validation checks, rolling-return metrics, volatility signals, and rank-movement analytics.
+- **Airflow 2.9 needs SQLAlchemy <2.0**, but `snowflake-sqlalchemy>=1.6`
+  pulls in SQLAlchemy 2.x and breaks the Airflow ORM. The container's
+  `requirements.txt` is pinned to `SQLAlchemy>=1.4,<2.0` and
+  `snowflake-sqlalchemy>=1.5,<1.6`. The local venv (`pyproject.toml`)
+  keeps the 2.x line because it doesn't run Airflow. If you change one,
+  rebuild the container.
+- The free Alpha Vantage tier is ~5 calls/min. With
+  `NASDAQ_SYMBOL_LIMIT=3` and the default 12.5s pause the run fits
+  inside the quota. Bump the limit only after you've upgraded the key.
+- Metadata DB is SQLite + SequentialExecutor. Fine for one user on a
+  laptop; don't try to scale this without Postgres + a real executor.
+
+## Roadmap
+
+- [ ] Swap SequentialExecutor → LocalExecutor with Postgres metadata
+- [ ] Backfill DAG (currently `LOAD_START_DATE` is the lower bound)
+- [ ] dbt project on top of the Silver layer
+- [ ] Streamlit dashboard reading from the Gold marts
